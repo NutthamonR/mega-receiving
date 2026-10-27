@@ -122,6 +122,16 @@ export function createDemoApi() {
       return wait(clone(me), 400);
     },
     async signInDemo(id) { me = byId(id); return wait(clone(me), 200); },
+    isRecoveryLink() { return false; },
+    // โหมดตัวอย่าง: ใช้อีเมลของบัญชีตัวอย่าง รหัสผ่านอะไรก็ได้ (ตั้งแต่ 8 ตัว)
+    async signInPassword(email) { return this.signInEmail(email); },
+    async signUp(email) {
+      if (profiles.some((x) => x.email.toLowerCase() === email.toLowerCase())) throw new Error('User already registered');
+      const p = { id: 'u' + (profiles.length + 1), full_name: email.split('@')[0], email, home_branch: null, role: 'staff', scope: 'branches', scope_branches: [], can_export: false, can_verify: false, can_manage: false, profile_completed: false, nickname: '', requested_role: null, requested_branches: [] };
+      profiles.push(p); me = p; return wait(clone(me), 300);
+    },
+    async sendPasswordReset() { return wait(true, 300); },
+    async updatePassword() { return wait(clone(me), 200); },
     async signOut() { me = null; },
 
     async createReceipt(input) {

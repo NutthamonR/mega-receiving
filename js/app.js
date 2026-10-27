@@ -55,7 +55,8 @@ const S = {
   all: { branch: 'all', doc: 'all', status: 'all', from: daysAgoISO(30), to: localISO(), q: '', selected: null },
   admin: { selected: null, draft: null, q: '', saved: false },
   cache: { mine: null, all: null, detail: null, profiles: null, log: null },
-  login: { email: '', busy: '', error: '', sent: '' },
+  login: { mode: 'signin', email: '', busy: '', error: '', info: '' }, // signin | signup | forgot
+  recovery: null, // ตั้งรหัสผ่านใหม่จากลิงก์ในอีเมล
   onb: null, // ข้อมูลหน้ากรอกข้อมูลครั้งแรก
   req: { open: false, branches: [], note: '', busy: false }, // ขอดูสาขาอื่น
   notif: { list: [], open: false, loaded: false }, // แจ้งเตือน
@@ -124,6 +125,7 @@ function headerHtml(r) {
 async function render() {
   if (S.booting) return;
   const toastDiv = `<div id="toast" class="toast" role="status" ${S.toast ? '' : 'hidden'}>${esc(S.toast)}</div>`;
+  if (S.recovery) { $app.innerHTML = recoveryHtml() + toastDiv; return; }
   if (!S.me) { $app.innerHTML = loginHtml() + toastDiv; return; }
   if (!S.me.profile_completed) { $app.innerHTML = onboardingHtml() + toastDiv; return; }
   let r = route();
@@ -293,27 +295,8 @@ function loginHtml() {
 
     <section class="login-panel">
       <div class="login-card">
-        <div class="stack-xs">
-          <h2 class="h1">เข้าสู่ระบบ</h2>
-          <p class="muted p">ใช้บัญชีบริษัท @${esc(CONFIG.ALLOWED_EMAIL_DOMAIN)}</p>
-        </div>
+        ${loginFormHtml(L, demo)}
 
-        ${L.sent ? `
-          <div class="notice notice-info notice-icon" role="status">${ICON.check}<span>ส่งลิงก์ไปที่ <b>${esc(L.sent)}</b> แล้ว เปิดอีเมลบนเครื่องนี้แล้วกดลิงก์เพื่อเข้าสู่ระบบ</span></div>
-          <button class="btn btn-ghost" data-action="login-again">ใช้อีเมลอื่น</button>
-        ` : `
-          ${CONFIG.ENABLE_MICROSOFT_LOGIN ? `
-            <button class="btn btn-ms btn-lg btn-block" data-action="login-ms" ${L.busy ? 'disabled' : ''}>${MS_LOGO}${L.busy === 'ms' ? 'กำลังเชื่อมต่อ…' : 'เข้าสู่ระบบด้วย Microsoft'}</button>` : ''}
-          ${CONFIG.ENABLE_EMAIL_LOGIN ? `
-            ${CONFIG.ENABLE_MICROSOFT_LOGIN ? '<div class="or"><span>หรือ</span></div>' : ''}
-            <form class="stack-sm" data-form="login-email" novalidate>
-              <label for="login-email" class="label">อีเมลบริษัท</label>
-              <input id="login-email" class="input" type="email" autocomplete="email" inputmode="email" required placeholder="name@${esc(CONFIG.ALLOWED_EMAIL_DOMAIN)}" value="${esc(L.email)}">
-              <button class="btn btn-outline btn-block" type="submit" ${L.busy ? 'disabled' : ''}>${L.busy === 'email' ? 'กำลังส่ง…' : (demo ? 'เข้าสู่ระบบ' : 'ส่งลิงก์เข้าสู่ระบบทางอีเมล')}</button>
-            </form>` : ''}
-        `}
-
-        ${L.error ? `<div class="notice notice-danger" role="alert">${esc(L.error)}</div>` : ''}
 
         ${demo ? `
           <div class="demo-accounts stack-sm">
@@ -326,11 +309,148 @@ function loginHtml() {
                   <span class="who-text"><b>${u.profile_completed ? esc(displayName(u)) : 'ผู้ใช้ใหม่'}</b><small>${u.profile_completed ? esc(ROLES[u.role].label) + ' · ' + esc(u.home_branch) : 'เข้าครั้งแรก ยังไม่กรอกข้อมูล'}</small></span>
                 </button>`).join('')}
             </div>
-          </div>` : `
-          <p class="muted small p">เข้าสู่ระบบครั้งแรก ระบบจะสร้างบัญชีเป็น "พนักงานสาขา" ให้อัตโนมัติ หากต้องการสิทธิ์เพิ่ม ติดต่อผู้ดูแลระบบ</p>`}
+          </div>` : ''}
       </div>
     </section>
   </main>`;
+}
+
+const pwField = (id, label, auto, hint = '') => `
+  <div class="stack-xs">
+    <label for="${id}" class="label">${label}</label>
+    <div class="pw-wrap">
+      <input id="${id}" class="input" type="password" autocomplete="${auto}" minlength="8" required>
+      <button type="button" class="pw-toggle" data-action="pw-toggle" data-for="${id}" aria-label="แสดงรหัสผ่าน">แสดง</button>
+    </div>
+    ${hint ? `<span class="muted small">${hint}</span>` : ''}
+  </div>`;
+
+function loginFormHtml(L, demo) {
+  const domain = esc(CONFIG.ALLOWED_EMAIL_DOMAIN);
+  const emailField = `
+    <div class="stack-xs">
+      <label for="login-email" class="label">อีเมลบริษัท</label>
+      <input id="login-email" class="input" type="email" autocomplete="username" inputmode="email" required placeholder="name@${domain}" value="${esc(L.email)}">
+    </div>`;
+  const err = L.error ? `<div class="notice notice-danger" role="alert">${esc(L.error)}</div>` : '';
+  const info = L.info ? `<div class="notice notice-info notice-icon" role="status">${ICON.check}<span>${L.info}</span></div>` : '';
+
+  if (L.mode === 'forgot') {
+    return `
+      <div class="stack-xs">
+        <h2 class="h1">ลืมรหัสผ่าน</h2>
+        <p class="muted p">กรอกอีเมลบริษัท ระบบจะส่งลิงก์สำหรับตั้งรหัสผ่านใหม่ไปให้</p>
+      </div>
+      <form class="stack" data-form="forgot" novalidate>
+        ${emailField}
+        ${err}${info}
+        <button class="btn btn-primary btn-lg btn-block" type="submit" ${L.busy ? 'disabled' : ''}>${L.busy ? 'กำลังส่ง…' : 'ส่งลิงก์ตั้งรหัสผ่านใหม่'}</button>
+      </form>
+      <button type="button" class="btn btn-ghost" data-action="login-mode" data-value="signin">← กลับไปหน้าเข้าสู่ระบบ</button>`;
+  }
+
+  const signup = L.mode === 'signup';
+  return `
+    <div class="login-tabs" role="tablist" aria-label="เข้าสู่ระบบหรือสมัครใช้งาน">
+      <button type="button" role="tab" aria-selected="${!signup}" class="login-tab ${signup ? '' : 'is-on'}" data-action="login-mode" data-value="signin">เข้าสู่ระบบ</button>
+      <button type="button" role="tab" aria-selected="${signup}" class="login-tab ${signup ? 'is-on' : ''}" data-action="login-mode" data-value="signup">สมัครใช้งานครั้งแรก</button>
+    </div>
+    <p class="muted p">${signup ? `สมัครด้วยอีเมลบริษัท @${domain} และตั้งรหัสผ่านของคุณเอง` : `ใช้อีเมลบริษัท @${domain} และรหัสผ่านที่ตั้งไว้`}</p>
+    <form class="stack" data-form="${signup ? 'signup' : 'signin'}" novalidate>
+      ${emailField}
+      ${signup
+        ? pwField('login-pw', 'ตั้งรหัสผ่าน', 'new-password', 'อย่างน้อย 8 ตัวอักษร') + pwField('login-pw2', 'ยืนยันรหัสผ่าน', 'new-password')
+        : pwField('login-pw', 'รหัสผ่าน', 'current-password')}
+      ${signup ? '' : '<button type="button" class="linklike small forgot-link" data-action="login-mode" data-value="forgot">ลืมรหัสผ่าน?</button>'}
+      ${err}${info}
+      <button class="btn btn-primary btn-lg btn-block" type="submit" ${L.busy ? 'disabled' : ''}>${L.busy ? 'กำลังดำเนินการ…' : (signup ? 'สมัครใช้งาน' : 'เข้าสู่ระบบ')}</button>
+    </form>
+    ${demo ? '<p class="muted small p">โหมดตัวอย่าง: ใช้อีเมลของบัญชีตัวอย่างด้านล่าง รหัสผ่านอะไรก็ได้ 8 ตัวขึ้นไป</p>' : ''}`;
+}
+
+// หน้าตั้งรหัสผ่านใหม่ (เปิดจากลิงก์ในอีเมล "ลืมรหัสผ่าน")
+function recoveryHtml() {
+  const R = S.recovery;
+  return `
+  <main class="wrap page page-narrow">
+    <div class="card stack">
+      <img class="logo" src="images/logo.png" alt="MEGA Clinic">
+      <div class="stack-xs">
+        <h1 class="h1">ตั้งรหัสผ่านใหม่</h1>
+        <p class="muted p">${S.me ? 'สำหรับ ' + esc(S.me.email) : ''}</p>
+      </div>
+      <form class="stack" data-form="recovery" novalidate>
+        ${pwField('new-pw', 'รหัสผ่านใหม่', 'new-password', 'อย่างน้อย 8 ตัวอักษร')}
+        ${pwField('new-pw2', 'ยืนยันรหัสผ่านใหม่', 'new-password')}
+        ${R.error ? `<div class="notice notice-danger" role="alert">${esc(R.error)}</div>` : ''}
+        <button class="btn btn-primary btn-lg btn-block" type="submit" ${R.busy ? 'disabled' : ''}>${R.busy ? 'กำลังบันทึก…' : 'บันทึกรหัสผ่านใหม่'}</button>
+      </form>
+    </div>
+  </main>`;
+}
+
+// แปลงข้อความผิดพลาดจากระบบเป็นภาษาไทย
+function authError(e) {
+  const m = String(e && e.message || e);
+  if (/Invalid login credentials/i.test(m)) return 'อีเมลหรือรหัสผ่านไม่ถูกต้อง (ถ้ายังไม่เคยตั้งรหัสผ่าน ให้กด "สมัครใช้งานครั้งแรก" หรือ "ลืมรหัสผ่าน?")';
+  if (/already registered|already been registered/i.test(m)) return 'อีเมลนี้สมัครไว้แล้ว ให้เข้าสู่ระบบ หรือกด "ลืมรหัสผ่าน?" เพื่อตั้งรหัสใหม่';
+  if (/Database error saving new user|อนุญาตเฉพาะอีเมล/i.test(m)) return 'ใช้ได้เฉพาะอีเมล @' + CONFIG.ALLOWED_EMAIL_DOMAIN;
+  if (/Email not confirmed/i.test(m)) return 'บัญชียังไม่ได้ยืนยันอีเมล กรุณาติดต่อผู้ดูแลระบบ';
+  if (/Password should be|weak/i.test(m)) return 'รหัสผ่านง่ายเกินไป ใช้อย่างน้อย 8 ตัว ผสมตัวอักษรและตัวเลข';
+  if (/rate limit|security purposes|too many/i.test(m)) return 'ส่งคำขอถี่เกินไป กรุณารอสักครู่แล้วลองใหม่';
+  if (/same.*password|different from the old/i.test(m)) return 'รหัสผ่านใหม่ต้องไม่ซ้ำกับรหัสเดิม';
+  return m;
+}
+
+function readEmail(L) {
+  L.email = document.getElementById('login-email').value.trim();
+  const domain = CONFIG.ALLOWED_EMAIL_DOMAIN;
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(L.email)) return 'กรอกอีเมลให้ถูกต้อง เช่น name@' + domain;
+  if (domain && !L.email.toLowerCase().endsWith('@' + domain)) return 'ใช้ได้เฉพาะอีเมล @' + domain;
+  return '';
+}
+
+async function submitAuth(kind) {
+  const L = S.login;
+  L.error = ''; L.info = '';
+  const emailErr = readEmail(L);
+  if (emailErr) { L.error = emailErr; render(); return; }
+  const pw = document.getElementById('login-pw')?.value || '';
+  if (kind === 'signup') {
+    const pw2 = document.getElementById('login-pw2').value;
+    if (pw.length < 8) { L.error = 'รหัสผ่านต้องมีอย่างน้อย 8 ตัวอักษร'; render(); return; }
+    if (pw !== pw2) { L.error = 'รหัสผ่านทั้งสองช่องไม่ตรงกัน'; render(); return; }
+  }
+  if (kind === 'signin' && !pw) { L.error = 'กรอกรหัสผ่าน'; render(); return; }
+  L.busy = kind; render();
+  try {
+    if (kind === 'forgot') {
+      await S.api.sendPasswordReset(L.email);
+      L.busy = ''; L.info = `ถ้ามีบัญชีของ <b>${esc(L.email)}</b> ระบบได้ส่งลิงก์ตั้งรหัสผ่านใหม่ไปแล้ว เปิดอีเมลแล้วกดลิงก์ภายใน 1 ชั่วโมง`;
+      render(); return;
+    }
+    const r = kind === 'signup' ? await S.api.signUp(L.email, pw) : await S.api.signInPassword(L.email, pw);
+    L.busy = '';
+    if (r && r.needsConfirm) { L.mode = 'signin'; L.info = 'สมัครแล้ว กรุณาเปิดอีเมลเพื่อยืนยันบัญชี แล้วกลับมาเข้าสู่ระบบ'; render(); return; }
+    finishLogin(r);
+  } catch (e) { L.busy = ''; L.error = authError(e); render(); }
+}
+
+async function submitRecovery() {
+  const R = S.recovery;
+  const pw = document.getElementById('new-pw').value;
+  const pw2 = document.getElementById('new-pw2').value;
+  R.error = '';
+  if (pw.length < 8) { R.error = 'รหัสผ่านต้องมีอย่างน้อย 8 ตัวอักษร'; render(); return; }
+  if (pw !== pw2) { R.error = 'รหัสผ่านทั้งสองช่องไม่ตรงกัน'; render(); return; }
+  R.busy = true; render();
+  try {
+    const p = await S.api.updatePassword(pw);
+    S.recovery = null;
+    history.replaceState(null, '', location.pathname + '#receive');
+    toast('ตั้งรหัสผ่านใหม่แล้ว');
+    finishLogin(p);
+  } catch (e) { R.busy = false; R.error = authError(e); render(); }
 }
 
 /* ---------- first-time profile ---------- */
@@ -435,7 +555,7 @@ async function submitOnboarding() {
 
 async function finishLogin(profile) {
   S.me = profile;
-  S.login = { email: '', busy: '', error: '', sent: '' };
+  S.login = { mode: 'signin', email: '', busy: '', error: '', info: '' };
   resetCaches();
   S.form = newForm(S.me);
   S.onb = null;
@@ -1178,7 +1298,18 @@ $app.addEventListener('click', async (ev) => {
       } catch (e) { S.login.busy = ''; S.login.error = 'เข้าสู่ระบบไม่สำเร็จ: ' + e.message; render(); }
       break;
     case 'login-demo': finishLogin(await S.api.signInDemo(el.dataset.id)); break;
-    case 'login-again': S.login.sent = ''; render(); break;
+    case 'login-mode': {
+      const email = document.getElementById('login-email')?.value?.trim();
+      S.login = { ...S.login, mode: el.dataset.value, error: '', info: '', email: email ?? S.login.email };
+      render(); document.getElementById(S.login.email ? 'login-pw' : 'login-email')?.focus(); break;
+    }
+    case 'pw-toggle': {
+      const inp = document.getElementById(el.dataset.for);
+      const show = inp.type === 'password';
+      inp.type = show ? 'text' : 'password';
+      el.textContent = show ? 'ซ่อน' : 'แสดง';
+      el.setAttribute('aria-label', show ? 'ซ่อนรหัสผ่าน' : 'แสดงรหัสผ่าน'); break;
+    }
   }
 });
 
@@ -1240,24 +1371,16 @@ $app.addEventListener('submit', async (ev) => {
   const form = ev.target.dataset.form;
   if (form === 'receive') submitReceive();
   if (form === 'onboard') submitOnboarding();
-  if (form === 'login-email') {
-    const L = S.login;
-    L.email = document.getElementById('login-email').value.trim();
-    L.error = '';
-    const domain = CONFIG.ALLOWED_EMAIL_DOMAIN;
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(L.email)) { L.error = 'กรอกอีเมลให้ถูกต้อง เช่น name@' + domain; render(); return; }
-    if (domain && !L.email.toLowerCase().endsWith('@' + domain)) { L.error = 'ใช้ได้เฉพาะอีเมล @' + domain; render(); return; }
-    L.busy = 'email'; render();
-    try {
-      const p = await S.api.signInEmail(L.email);
-      L.busy = '';
-      if (p) finishLogin(p); else { L.sent = L.email; render(); }
-    } catch (e) { L.busy = ''; L.error = (S.api.mode === 'demo' ? '' : 'ส่งลิงก์ไม่สำเร็จ: ') + e.message; render(); }
-  }
+  if (form === 'signin' || form === 'signup' || form === 'forgot') submitAuth(form);
+  if (form === 'recovery') submitRecovery();
 });
 
 window.addEventListener('hashchange', () => { window.scrollTo(0, 0); render(); });
+window.addEventListener('auth-recovery', async () => {
+  S.me = await S.api.currentProfile(); S.recovery = { error: '', busy: false }; render();
+});
 window.addEventListener('auth-changed', async () => {
+  if (S.recovery) return;
   S.me = await S.api.currentProfile(); resetCaches(); S.form = newForm(S.me); render();
 });
 
@@ -1271,6 +1394,7 @@ window.addEventListener('auth-changed', async () => {
       S.api = createDemoApi();
     }
     S.me = await S.api.init();
+    if (S.api.isRecoveryLink && S.api.isRecoveryLink()) S.recovery = { error: '', busy: false };
   } catch (e) {
     $app.innerHTML = `<main class="wrap page"><div class="notice notice-danger">เชื่อมต่อระบบไม่สำเร็จ: ${esc(e.message)}<br>ตรวจสอบค่าใน js/config.js</div></main>`;
     return;

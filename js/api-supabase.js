@@ -5,6 +5,8 @@ const SUPABASE_JS = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/+
 const BUCKET = 'receipts';
 
 export async function createSupabaseApi(config) {
+  // ลิงก์รีเซ็ตรหัสผ่านจากอีเมล (ต้องเช็กก่อนสร้าง client เพราะ client จะล้างค่าใน URL)
+  const recoveryLink = /type=recovery/.test(location.hash + location.search);
   const { createClient } = await import(SUPABASE_JS);
   const sb = createClient(config.SUPABASE_URL, config.SUPABASE_ANON_KEY, {
     auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true },
@@ -56,6 +58,7 @@ export async function createSupabaseApi(config) {
 
     async init() {
       sb.auth.onAuthStateChange((event) => {
+        if (event === 'PASSWORD_RECOVERY') { window.dispatchEvent(new Event('auth-recovery')); return; }
         if (event === 'SIGNED_IN' || event === 'SIGNED_OUT') window.dispatchEvent(new Event('auth-changed'));
       });
       return loadProfile();
@@ -75,6 +78,31 @@ export async function createSupabaseApi(config) {
     },
 
     async signOut() { await sb.auth.signOut(); me = null; },
+
+    isRecoveryLink() { return recoveryLink; },
+
+    // เข้าสู่ระบบด้วยอีเมล + รหัสผ่าน
+    async signInPassword(email, password) {
+      check(await sb.auth.signInWithPassword({ email, password }));
+      return loadProfile();
+    },
+
+    // สมัครใช้งานครั้งแรก (ปิด Confirm email ใน Supabase แล้ว จะเข้าใช้งานได้ทันที)
+    async signUp(email, password) {
+      const data = check(await sb.auth.signUp({ email, password, options: { emailRedirectTo: location.origin + location.pathname } }));
+      if (!data.session) return { needsConfirm: true };
+      return loadProfile();
+    },
+
+    // ลืมรหัสผ่าน: ส่งลิงก์ตั้งรหัสใหม่ไปที่อีเมล
+    async sendPasswordReset(email) {
+      check(await sb.auth.resetPasswordForEmail(email, { redirectTo: location.origin + location.pathname }));
+    },
+
+    async updatePassword(password) {
+      check(await sb.auth.updateUser({ password }));
+      return loadProfile();
+    },
 
     // ขอดูรายการสาขาอื่น (ส่งรายการว่าง = ยกเลิกคำขอ)
     async requestBranches(branches, note) {
