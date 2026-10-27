@@ -442,3 +442,24 @@ create trigger permission_log_notify
 --   set role = 'admin', scope = 'all', can_export = true, can_verify = true, can_manage = true
 --   where email = 'your.name@megaclinicthailand.com';
 -- =====================================================================
+
+-- ---------- จำกัดสิทธิ์เรียกฟังก์ชัน ----------
+revoke execute on function public.can_view_receipt(text, uuid) from public, anon;
+revoke execute on function public.is_manager() from public, anon;
+revoke execute on function public.is_verifier() from public, anon;
+revoke execute on function public.complete_profile(text, text, text, text) from public, anon;
+revoke execute on function public.request_branch_access(text[], text) from public, anon;
+revoke execute on function public.handle_new_user() from public, anon, authenticated;
+revoke execute on function public.receipts_before_insert() from public, anon, authenticated;
+revoke execute on function public.receipts_before_update() from public, anon, authenticated;
+revoke execute on function public.profiles_before_update() from public, anon, authenticated;
+revoke execute on function public.permission_log_before_insert() from public, anon, authenticated;
+revoke execute on function public.receipts_notify() from public, anon, authenticated;
+revoke execute on function public.profiles_notify() from public, anon, authenticated;
+revoke execute on function public.permission_log_notify() from public, anon, authenticated;
+revoke execute on function public.display_name(uuid) from public, anon, authenticated;
+grant execute on function public.can_view_receipt(text, uuid) to authenticated;
+grant execute on function public.is_manager() to authenticated;
+grant execute on function public.is_verifier() to authenticated;
+grant execute on function public.complete_profile(text, text, text, text) to authenticated;
+grant execute on function public.request_branch_access(text[], text) to authenticated;
