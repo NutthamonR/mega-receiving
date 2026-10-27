@@ -1,0 +1,30 @@
+name: ลบรูปเก่ากว่า 60 วัน
+
+on:
+  schedule:
+    - cron: '0 20 * * *'   # ทุกวัน 03:00 น. เวลาไทย
+  workflow_dispatch:        # กดรันเองได้ที่แท็บ Actions
+    inputs:
+      dry_run:
+        description: 'ทดลองดูก่อน ไม่ลบจริง (1 = ทดลอง)'
+        default: '0'
+
+permissions:
+  contents: read
+
+jobs:
+  purge:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: ลบรูปที่หมดอายุ
+        run: node scripts/purge-old-photos.mjs
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          RETENTION_DAYS: ${{ vars.RETENTION_DAYS || '60' }}
+          PURGE_KINDS: ${{ vars.PURGE_KINDS || 'photo' }}
+          DRY_RUN: ${{ github.event.inputs.dry_run || '0' }}
