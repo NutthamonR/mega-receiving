@@ -1,0 +1,142 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#C8197A">
+<title>คู่มือระบบรับของสาขา · MEGA Clinic</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;500;600;700&display=swap">
+<link rel="apple-touch-icon" href="../images/logo.png">
+<style>
+/* Layout: one column of guide cards; sticky topic bar on top; big topic buttons first */
+:root {
+  --bg: #F7F3F5; --surface: #FFFFFF; --fg: #241C20; --muted: #5F5559; --line: #E8DEE3;
+  --accent: #C8197A; --accent-soft: #FCE5F1; --accent-ink: #A9105F; --on-accent: #FFFFFF;
+  --font: 'IBM Plex Sans Thai', 'Noto Sans Thai', 'Leelawadee UI', Tahoma, system-ui, sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root { --bg: #141013; --surface: #1D171A; --fg: #F2EAEE; --muted: #B0A1A9; --line: #362C31;
+          --accent: #F06AB0; --accent-soft: #46162F; --accent-ink: #F7A6D0; --on-accent: #2A0518; color-scheme: dark; }
+}
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; scroll-padding-top: 72px; }
+@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+body { margin: 0; background: var(--bg); color: var(--fg); font-family: var(--font); font-size: 16px; line-height: 1.55; }
+a { color: var(--accent-ink); }
+:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; border-radius: 8px; }
+.wrap { max-width: 760px; margin: 0 auto; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+
+body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); background: var(--surface); z-index: 10; }
+.bar { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5; background: var(--surface); border-bottom: 1px solid var(--line); }
+.bar-in { display: flex; align-items: center; gap: 10px; padding-block: 8px; }
+.bar img { height: 34px; width: auto; flex-shrink: 0; }
+.chips { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; padding: 4px 2px; }
+.chips::-webkit-scrollbar { display: none; }
+.chip { flex-shrink: 0; text-decoration: none; color: var(--fg); background: var(--bg); border: 1px solid var(--line); border-radius: 999px; padding: 8px 14px; font-size: 14px; font-weight: 600; min-height: 40px; display: inline-flex; align-items: center; white-space: nowrap; }
+.chip.is-on { background: var(--accent); color: var(--on-accent); border-color: var(--accent); }
+
+.hero { padding-block: 28px 8px; }
+.hero h1 { margin: 0; font-size: 28px; line-height: 1.25; text-wrap: balance; }
+.hero p { margin: 6px 0 0; color: var(--muted); }
+.toc { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin: 20px 0 8px; }
+.toc a { display: flex; align-items: center; gap: 12px; text-decoration: none; color: var(--fg); background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 14px; min-height: 72px; }
+.toc a:hover { border-color: var(--accent); }
+.toc .n { width: 40px; height: 40px; border-radius: 50%; background: var(--accent); color: var(--on-accent); font-weight: 700; font-size: 18px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.toc b { display: block; font-size: 16px; line-height: 1.3; }
+.toc small { display: block; color: var(--muted); font-size: 13px; line-height: 1.35; }
+.open-app { display: flex; justify-content: center; align-items: center; gap: 8px; margin: 14px 0 0; min-height: 52px; border-radius: 14px; background: var(--accent); color: var(--on-accent); text-decoration: none; font-weight: 700; font-size: 17px; }
+
+section { padding-block: 24px 8px; }
+section h2 { margin: 0 0 12px; font-size: 20px; display: flex; align-items: center; gap: 10px; }
+section h2 .n { width: 32px; height: 32px; border-radius: 50%; background: var(--accent-soft); color: var(--accent-ink); font-size: 15px; display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.shot { display: block; width: 100%; max-width: 100%; height: auto; aspect-ratio: 1080 / 1350; border-radius: 18px; border: 1px solid var(--line); background: var(--surface); }
+.nav { display: flex; justify-content: space-between; gap: 10px; margin-top: 12px; }
+.nav a { text-decoration: none; font-weight: 600; font-size: 15px; min-height: 44px; display: inline-flex; align-items: center; padding: 0 14px; border-radius: 12px; background: var(--surface); border: 1px solid var(--line); color: var(--fg); }
+.nav a.next { margin-left: auto; color: var(--accent-ink); border-color: var(--accent); }
+footer { padding-block: 32px calc(40px + env(safe-area-inset-bottom, 0px)); color: var(--muted); font-size: 14px; text-align: center; }
+@media (max-width: 420px) { .toc { grid-template-columns: minmax(0, 1fr); } .toc a { min-height: 60px; } }
+</style>
+</head>
+<body>
+
+<header class="bar">
+  <div class="wrap bar-in">
+    <a href="#top" aria-label="ไปด้านบน"><img src="../images/logo.png" alt="MEGA Clinic"></a>
+    <nav class="chips" aria-label="หัวข้อคู่มือ">
+      <a class="chip" href="#start">เริ่มต้น</a>
+      <a class="chip" href="#signup">สมัครใช้งาน</a>
+      <a class="chip" href="#receive">บันทึกรับของ</a>
+      <a class="chip" href="#list">ดูรายการ/แจ้งเตือน</a>
+      <a class="chip" href="#password">ลืมรหัสผ่าน</a>
+    </nav>
+  </div>
+</header>
+
+<main class="wrap" id="top">
+  <div class="hero">
+    <h1>คู่มือระบบรับของสาขา</h1>
+    <p>กดเลือกหัวข้อที่ต้องการดูได้เลย</p>
+    <div class="toc">
+      <a href="#start"><span class="n">0</span><span><b>เริ่มต้นใช้งาน</b><small>ลิงก์ระบบ QR Code ใครทำอะไรได้</small></span></a>
+      <a href="#signup"><span class="n">1</span><span><b>สมัครใช้งานครั้งแรก</b><small>ตั้งรหัสผ่าน กรอกชื่อ เลือกสาขา</small></span></a>
+      <a href="#receive"><span class="n">2</span><span><b>บันทึกรับของ</b><small>สินค้า จำนวน รูป เอกสาร</small></span></a>
+      <a href="#list"><span class="n">3</span><span><b>ดูรายการ และแจ้งเตือน</b><small>สถานะ กระดิ่ง ขอดูสาขาอื่น</small></span></a>
+      <a href="#password"><span class="n">?</span><span><b>ลืมรหัสผ่าน</b><small>ตั้งรหัสใหม่เอง หรือขอผู้ดูแลระบบ</small></span></a>
+    </div>
+    <a class="open-app" href="../">เปิดระบบรับของสาขา →</a>
+  </div>
+
+  <section id="start" aria-labelledby="h-start">
+    <h2 id="h-start"><span class="n">0</span>เริ่มต้นใช้งาน</h2>
+    <img class="shot" src="img/start.webp" width="1080" height="1350" alt="ภาพรวม: สมัครใช้งาน บันทึกรับของ จัดซื้อตรวจ ดูรายการ พร้อม QR Code เข้าระบบ ใช้อีเมล @megaclinicthailand.com">
+    <div class="nav"><a class="next" href="#signup">ถัดไป: สมัครใช้งาน →</a></div>
+  </section>
+
+  <section id="signup" aria-labelledby="h-signup">
+    <h2 id="h-signup"><span class="n">1</span>สมัครใช้งานครั้งแรก</h2>
+    <img class="shot" src="img/signup.webp" width="1080" height="1350" loading="lazy" alt="ขั้นตอนสมัคร: กดแท็บสมัครใช้งานครั้งแรก ใส่อีเมลและตั้งรหัสผ่าน 8 ตัวขึ้นไป กรอกชื่อ นามสกุล ชื่อเล่น เลือกสาขาประจำและบทบาท แล้วกดบันทึกและเริ่มใช้งาน">
+    <div class="nav"><a href="#top">↑ หัวข้อทั้งหมด</a><a class="next" href="#receive">ถัดไป: บันทึกรับของ →</a></div>
+  </section>
+
+  <section id="receive" aria-labelledby="h-receive">
+    <h2 id="h-receive"><span class="n">2</span>บันทึกรับของ</h2>
+    <img class="shot" src="img/receive-1.webp" width="1080" height="1350" loading="lazy" alt="บันทึกรับของตอนที่ 1: เช็กชื่อผู้รับ สาขาและวันที่ พิมพ์ชื่อสินค้า จำนวน หน่วย และกดเพิ่มรายการ">
+    <img class="shot" src="img/receive-2.webp" width="1080" height="1350" loading="lazy" alt="บันทึกรับของตอนที่ 2: ถ่ายรูปสินค้า เลือกเอกสารที่ได้รับ ใส่หมายเหตุ แล้วกดยืนยันรับของเพื่อรับเลขที่ GR" style="margin-top:12px">
+    <div class="nav"><a href="#top">↑ หัวข้อทั้งหมด</a><a class="next" href="#list">ถัดไป: ดูรายการ →</a></div>
+  </section>
+
+  <section id="list" aria-labelledby="h-list">
+    <h2 id="h-list"><span class="n">3</span>ดูรายการ และแจ้งเตือน</h2>
+    <img class="shot" src="img/list.webp" width="1080" height="1350" loading="lazy" alt="ดูรายการของฉันและรายการสาขา สถานะรอตรวจและตรวจแล้ว กระดิ่งแจ้งเตือน และการขอดูสาขาอื่น">
+    <div class="nav"><a href="#top">↑ หัวข้อทั้งหมด</a><a class="next" href="#password">ถัดไป: ลืมรหัสผ่าน →</a></div>
+  </section>
+
+  <section id="password" aria-labelledby="h-password">
+    <h2 id="h-password"><span class="n">?</span>ลืมรหัสผ่าน</h2>
+    <img class="shot" src="img/password.webp" width="1080" height="1350" loading="lazy" alt="ลืมรหัสผ่าน: กดลืมรหัสผ่าน ใส่อีเมล กดลิงก์ในอีเมลภายใน 1 ชั่วโมง แล้วตั้งรหัสใหม่ ถ้าไม่ได้รับอีเมลให้ขอรหัสชั่วคราวจากผู้ดูแลระบบ">
+    <div class="nav"><a href="#top">↑ หัวข้อทั้งหมด</a><a class="next" href="../">เปิดระบบ →</a></div>
+  </section>
+</main>
+
+<footer>ติดปัญหาการใช้งาน ติดต่อผู้ดูแลระบบ: คุณแบม ฝ่ายจัดซื้อ</footer>
+
+<script>
+// ไฮไลต์หัวข้อที่กำลังดูอยู่ในแถบด้านบน
+(function () {
+  var chips = Array.prototype.slice.call(document.querySelectorAll('.chip'));
+  var map = {}; chips.forEach(function (c) { map[c.getAttribute('href').slice(1)] = c; });
+  function setOn(id) {
+    chips.forEach(function (c) { c.classList.toggle('is-on', c === map[id]); });
+    var c = map[id]; if (c) c.parentNode.scrollTo({ left: c.offsetLeft - c.parentNode.offsetLeft - 8, behavior: 'smooth' });
+  }
+  if (!('IntersectionObserver' in window)) return;
+  var io = new IntersectionObserver(function (entries) {
+    entries.forEach(function (e) { if (e.isIntersecting) setOn(e.target.id); });
+  }, { rootMargin: '-40% 0px -55% 0px' });
+  Object.keys(map).forEach(function (id) { var s = document.getElementById(id); if (s) io.observe(s); });
+})();
+</script>
+</body>
+</html>

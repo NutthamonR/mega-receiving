@@ -118,6 +118,7 @@ function headerHtml(r) {
     </div>
     <nav class="wrap tabs" aria-label="เมนูหลัก">
       ${tabs.map(([k, label]) => `<a href="#${k}" class="tab ${r === k || (r === 'receipt' && k === 'mine') ? 'is-on' : ''}">${label}<span class="tab-badge" id="badge-${k}" ${badgeFor(k) ? '' : 'hidden'}>${badgeText(badgeFor(k))}</span></a>`).join('')}
+      <a href="guide/" class="tab tab-help" target="_blank" rel="noopener">คู่มือ</a>
     </nav>
   </header>`;
 }
@@ -366,6 +367,7 @@ function loginFormHtml(L, demo) {
       ${err}${info}
       <button class="btn btn-primary btn-lg btn-block" type="submit" ${L.busy ? 'disabled' : ''}>${L.busy ? 'กำลังดำเนินการ…' : (signup ? 'สมัครใช้งาน' : 'เข้าสู่ระบบ')}</button>
     </form>
+    <a class="guide-link" href="guide/" target="_blank" rel="noopener">ดูคู่มือการใช้งาน (มีรูปประกอบ)</a>
     ${demo ? '<p class="muted small p">โหมดตัวอย่าง: ใช้อีเมลของบัญชีตัวอย่างด้านล่าง รหัสผ่านอะไรก็ได้ 8 ตัวขึ้นไป</p>' : ''}`;
 }
 
