@@ -131,7 +131,13 @@ export function createDemoApi() {
       profiles.push(p); me = p; return wait(clone(me), 300);
     },
     async sendPasswordReset() { return wait(true, 300); },
-    async updatePassword() { return wait(clone(me), 200); },
+    async updatePassword() { me.must_change_password = false; return wait(clone(me), 200); },
+    async setTempPassword(userId) {
+      if (!me.can_manage) throw new Error('เฉพาะผู้ดูแลระบบ');
+      const p = byId(userId); p.must_change_password = true;
+      log.unshift({ at: new Date().toISOString(), actor_name: me.full_name, target_name: p.full_name, summary: 'ตั้งรหัสผ่านชั่วคราว' });
+      return wait(true, 300);
+    },
     async signOut() { me = null; },
 
     async createReceipt(input) {

@@ -101,7 +101,13 @@ export async function createSupabaseApi(config) {
 
     async updatePassword(password) {
       check(await sb.auth.updateUser({ password }));
+      check(await sb.rpc('clear_must_change_password'));
       return loadProfile();
+    },
+
+    // ผู้ดูแลระบบตั้งรหัสผ่านชั่วคราวให้ผู้ใช้ (ผู้ใช้ต้องเปลี่ยนเองหลังเข้าสู่ระบบ)
+    async setTempPassword(userId, password) {
+      check(await sb.rpc('admin_set_temp_password', { p_user: userId, p_password: password }));
     },
 
     // ขอดูรายการสาขาอื่น (ส่งรายการว่าง = ยกเลิกคำขอ)

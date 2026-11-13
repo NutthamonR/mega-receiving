@@ -463,3 +463,32 @@ grant execute on function public.is_manager() to authenticated;
 grant execute on function public.is_verifier() to authenticated;
 grant execute on function public.complete_profile(text, text, text, text) to authenticated;
 grant execute on function public.request_branch_access(text[], text) to authenticated;
+
+-- ---------- ผู้ดูแลระบบตั้งรหัสผ่านชั่วคราว ----------
+alter table public.profiles add column if not exists must_change_password boolean not null default false;
+
+create or replace function public.admin_set_temp_password(p_user uuid, p_password text)
+returns void language plpgsql security definer set search_path = public, extensions as $$
+begin
+  if not public.is_manager() then raise exception 'เฉพาะผู้ดูแลระบบ'; end if;
+  if p_user = auth.uid() then raise exception 'ตั้งรหัสชั่วคราวให้ตัวเองไม่ได้ ใช้ ลืมรหัสผ่าน แทน'; end if;
+  if length(coalesce(p_password, '')) < 8 then raise exception 'รหัสผ่านต้องมีอย่างน้อย 8 ตัวอักษร'; end if;
+  update auth.users
+     set encrypted_password = extensions.crypt(p_password, extensions.gen_salt('bf')),
+         email_confirmed_at = coalesce(email_confirmed_at, now()),
+         updated_at = now()
+   where id = p_user;
+  if not found then raise exception 'ไม่พบผู้ใช้'; end if;
+  update public.profiles set must_change_password = true where id = p_user;
+  insert into public.permission_log (target_id, summary) values (p_user, 'ตั้งรหัสผ่านชั่วคราว');
+end $$;
+
+create or replace function public.clear_must_change_password()
+returns void language sql security definer set search_path = public as $$
+  update public.profiles set must_change_password = false where id = auth.uid();
+$$;
+
+revoke execute on function public.admin_set_temp_password(uuid, text) from public, anon;
+revoke execute on function public.clear_must_change_password() from public, anon;
+grant execute on function public.admin_set_temp_password(uuid, text) to authenticated;
+grant execute on function public.clear_must_change_password() to authenticated;

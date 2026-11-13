@@ -53,7 +53,7 @@ const S = {
   form: null, currentId: null, justSaved: false,
   mine: { range: '30' },
   all: { branch: 'all', doc: 'all', status: 'all', from: daysAgoISO(30), to: localISO(), q: '', selected: null },
-  admin: { selected: null, draft: null, q: '', saved: false },
+  admin: { selected: null, draft: null, q: '', saved: false, pw: null }, // pw: { confirm, busy, result, error }
   cache: { mine: null, all: null, detail: null, profiles: null, log: null },
   login: { mode: 'signin', email: '', busy: '', error: '', info: '' }, // signin | signup | forgot
   recovery: null, // ตั้งรหัสผ่านใหม่จากลิงก์ในอีเมล
@@ -125,6 +125,7 @@ function headerHtml(r) {
 async function render() {
   if (S.booting) return;
   const toastDiv = `<div id="toast" class="toast" role="status" ${S.toast ? '' : 'hidden'}>${esc(S.toast)}</div>`;
+  if (!S.recovery && S.me && S.me.must_change_password) S.recovery = { error: '', busy: false, forced: true };
   if (S.recovery) { $app.innerHTML = recoveryHtml() + toastDiv; return; }
   if (!S.me) { $app.innerHTML = loginHtml() + toastDiv; return; }
   if (!S.me.profile_completed) { $app.innerHTML = onboardingHtml() + toastDiv; return; }
@@ -379,12 +380,14 @@ function recoveryHtml() {
         <h1 class="h1">ตั้งรหัสผ่านใหม่</h1>
         <p class="muted p">${S.me ? 'สำหรับ ' + esc(S.me.email) : ''}</p>
       </div>
+      ${R.forced ? '<div class="notice notice-info">คุณเข้าสู่ระบบด้วยรหัสผ่านชั่วคราวจากผู้ดูแลระบบ กรุณาตั้งรหัสผ่านใหม่ของคุณเองก่อนใช้งาน</div>' : ''}
       <form class="stack" data-form="recovery" novalidate>
         ${pwField('new-pw', 'รหัสผ่านใหม่', 'new-password', 'อย่างน้อย 8 ตัวอักษร')}
         ${pwField('new-pw2', 'ยืนยันรหัสผ่านใหม่', 'new-password')}
         ${R.error ? `<div class="notice notice-danger" role="alert">${esc(R.error)}</div>` : ''}
         <button class="btn btn-primary btn-lg btn-block" type="submit" ${R.busy ? 'disabled' : ''}>${R.busy ? 'กำลังบันทึก…' : 'บันทึกรหัสผ่านใหม่'}</button>
       </form>
+      ${S.me ? '<button type="button" class="btn btn-ghost" data-action="signout">ออกจากระบบ</button>' : ''}
     </div>
   </main>`;
 }
@@ -1177,6 +1180,8 @@ async function adminHtml() {
             }).join('')}
           </fieldset>
 
+          ${tempPwHtml(base, self)}
+
           ${dirty ? `<div class="notice notice-info small"><b>จะเปลี่ยน:</b> ${esc(dirty)}</div>` : ''}
           <div class="row-gap">
             <button class="btn btn-primary grow" data-action="d-save" ${!dirty || S.busy ? 'disabled' : ''}>${S.busy ? 'กำลังบันทึก…' : 'บันทึกสิทธิ์'}</button>
@@ -1193,6 +1198,54 @@ async function adminHtml() {
         <span><b>${esc(l.actor_name)}</b> แก้สิทธิ์ของ <b>${esc(l.target_name)}</b> — ${esc(l.summary)}</span></li>`).join('')}</ul>` : '<p class="muted small">ยังไม่มีการเปลี่ยนสิทธิ์</p>'}
     </section>
   </main>`;
+}
+
+function tempPwHtml(base, self) {
+  if (!base || self) return '';
+  const P = S.admin.pw || {};
+  if (P.result) {
+    return `
+      <div class="notice notice-info stack-sm" role="status">
+        <b>รหัสผ่านชั่วคราวของ ${esc(displayName(base))}</b>
+        <div class="temp-pw"><code id="temp-pw-value">${esc(P.result)}</code>
+          <button type="button" class="btn btn-outline" data-action="tpw-copy">คัดลอก</button></div>
+        <span class="small">ส่งรหัสนี้ให้พนักงาน (เช่น ทาง LINE) เข้าสู่ระบบแล้วระบบจะบังคับให้ตั้งรหัสใหม่ทันที · รหัสนี้แสดงครั้งเดียว</span>
+        <button type="button" class="btn btn-ghost" data-action="tpw-done">เสร็จแล้ว</button>
+      </div>`;
+  }
+  return `
+    <fieldset class="stack-sm">
+      <legend class="label">รหัสผ่าน</legend>
+      ${base.must_change_password ? '<span class="muted small">ตั้งรหัสชั่วคราวไว้แล้ว รอพนักงานเข้าสู่ระบบและตั้งรหัสใหม่</span>' : ''}
+      ${P.confirm ? `
+        <div class="notice notice-warn stack-sm">
+          <span>ตั้งรหัสผ่านชั่วคราวให้ <b>${esc(displayName(base))}</b>? รหัสเดิมจะใช้ไม่ได้ทันที</span>
+          <div class="row-gap">
+            <button type="button" class="btn btn-primary" data-action="tpw-go" ${P.busy ? 'disabled' : ''}>${P.busy ? 'กำลังตั้ง…' : 'ยืนยัน'}</button>
+            <button type="button" class="btn btn-outline" data-action="tpw-cancel">ยกเลิก</button>
+          </div>
+        </div>` : `
+        <button type="button" class="btn btn-outline btn-block" data-action="tpw-ask">${ICON.lock}ตั้งรหัสผ่านชั่วคราว (ลืมรหัสผ่าน)</button>`}
+      ${P.error ? `<div class="notice notice-danger small" role="alert">${esc(P.error)}</div>` : ''}
+    </fieldset>`;
+}
+
+function randomTempPassword() {
+  const digits = new Uint32Array(1); crypto.getRandomValues(digits);
+  return 'Mega-' + String(100000 + (digits[0] % 900000));
+}
+
+async function setTempPassword() {
+  const P = S.admin.pw; const id = S.admin.selected;
+  P.busy = true; P.error = ''; render();
+  const pw = randomTempPassword();
+  try {
+    await S.api.setTempPassword(id, pw);
+    S.admin.pw = { result: pw };
+    const base = S.cache.profiles.find((p) => p.id === id); if (base) base.must_change_password = true;
+    S.cache.log = null;
+  } catch (e) { P.busy = false; P.error = 'ตั้งรหัสไม่สำเร็จ: ' + e.message; }
+  render();
 }
 
 async function saveDraft() {
@@ -1255,7 +1308,17 @@ $app.addEventListener('click', async (ev) => {
       } catch (e) { toast(e.message); }
       render(); break;
     case 'export': exportCsv(); break;
-    case 'select-user': S.admin.selected = el.dataset.id; S.admin.draft = null; render(); break;
+    case 'select-user': S.admin.selected = el.dataset.id; S.admin.draft = null; S.admin.pw = null; render(); break;
+    case 'tpw-ask': S.admin.pw = { confirm: true }; render(); break;
+    case 'tpw-cancel': S.admin.pw = null; render(); break;
+    case 'tpw-go': setTempPassword(); break;
+    case 'tpw-done': S.admin.pw = null; render(); break;
+    case 'tpw-copy': {
+      const v = S.admin.pw?.result || '';
+      try { await navigator.clipboard.writeText(v); toast('คัดลอกรหัสแล้ว'); }
+      catch { const r = document.createRange(); r.selectNodeContents(document.getElementById('temp-pw-value')); const sel = getSelection(); sel.removeAllRanges(); sel.addRange(r); toast('เลือกรหัสไว้แล้ว กด Ctrl+C เพื่อคัดลอก'); }
+      break;
+    }
     case 'd-role': d.role = el.dataset.value; Object.assign(d, ROLES[d.role].preset); if (d.id === S.me.id) d.can_manage = true; render(); break;
     case 'd-scope': d.scope = el.dataset.value; render(); break;
     case 'd-branch': {
@@ -1289,7 +1352,7 @@ $app.addEventListener('click', async (ev) => {
       S.notif.list.forEach((n) => { n.read_at = n.read_at || new Date().toISOString(); });
       updateNotifDom(); S.api.markNotificationsRead(null).catch(() => {}); break;
     case 'notif-open': openNotification(el.dataset.id); break;
-    case 'signout': await S.api.signOut(); S.me = null; resetCaches(); clearInterval(pollTimer); toast('ออกจากระบบแล้ว'); render(); break;
+    case 'signout': await S.api.signOut(); S.me = null; S.recovery = null; resetCaches(); clearInterval(pollTimer); toast('ออกจากระบบแล้ว'); render(); break;
     case 'login-ms':
       S.login.busy = 'ms'; S.login.error = ''; render();
       try {
