@@ -36,6 +36,11 @@ const ICON = {
   user: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21c1.5-4 4.5-6 8-6s6.5 2 8 6"/></svg>',
 };
 
+/* ---------- remember me (per device) ---------- */
+function rememberPref() { try { return localStorage.getItem('mega-recv-remember') !== '0'; } catch { return true; } }
+function lastEmail() { try { return localStorage.getItem('mega-recv-email') || ''; } catch { return ''; } }
+function saveLastEmail(email, on) { try { on ? localStorage.setItem('mega-recv-email', email) : localStorage.removeItem('mega-recv-email'); } catch {} }
+
 /* ---------- state ---------- */
 const $app = document.getElementById('app');
 const newForm = (me) => ({
@@ -55,7 +60,7 @@ const S = {
   all: { branch: 'all', doc: 'all', status: 'all', from: daysAgoISO(30), to: localISO(), q: '', selected: null },
   admin: { selected: null, draft: null, q: '', saved: false, pw: null }, // pw: { confirm, busy, result, error }
   cache: { mine: null, all: null, detail: null, profiles: null, log: null },
-  login: { mode: 'signin', email: '', busy: '', error: '', info: '' }, // signin | signup | forgot
+  login: { mode: 'signin', email: lastEmail(), busy: '', error: '', info: '', remember: rememberPref() }, // signin | signup | forgot
   recovery: null, // ตั้งรหัสผ่านใหม่จากลิงก์ในอีเมล
   onb: null, // ข้อมูลหน้ากรอกข้อมูลครั้งแรก
   req: { open: false, branches: [], note: '', busy: false }, // ขอดูสาขาอื่น
@@ -363,7 +368,14 @@ function loginFormHtml(L, demo) {
       ${signup
         ? pwField('login-pw', 'ตั้งรหัสผ่าน', 'new-password', 'อย่างน้อย 8 ตัวอักษร') + pwField('login-pw2', 'ยืนยันรหัสผ่าน', 'new-password')
         : pwField('login-pw', 'รหัสผ่าน', 'current-password')}
-      ${signup ? '' : '<button type="button" class="linklike small forgot-link" data-action="login-mode" data-value="forgot">ลืมรหัสผ่าน?</button>'}
+      <div class="remember-row">
+        <label class="remember" for="login-remember">
+          <input id="login-remember" type="checkbox" ${L.remember ? 'checked' : ''} data-field="login-remember">
+          <span>จำการเข้าสู่ระบบในเครื่องนี้</span>
+        </label>
+        ${signup ? '' : '<button type="button" class="linklike small" data-action="login-mode" data-value="forgot">ลืมรหัสผ่าน?</button>'}
+      </div>
+      <span class="muted small remember-hint">${L.remember ? 'ครั้งต่อไปเปิดเว็บในเครื่องนี้ ใช้งานได้เลยไม่ต้องเข้าสู่ระบบใหม่ · ไม่ควรติ๊กถ้าเป็นเครื่องที่ใช้ร่วมกัน' : 'จะออกจากระบบอัตโนมัติเมื่อปิดเบราว์เซอร์'}</span>
       ${err}${info}
       <button class="btn btn-primary btn-lg btn-block" type="submit" ${L.busy ? 'disabled' : ''}>${L.busy ? 'กำลังดำเนินการ…' : (signup ? 'สมัครใช้งาน' : 'เข้าสู่ระบบ')}</button>
     </form>
@@ -434,7 +446,10 @@ async function submitAuth(kind) {
       L.busy = ''; L.info = `ถ้ามีบัญชีของ <b>${esc(L.email)}</b> ระบบได้ส่งลิงก์ตั้งรหัสผ่านใหม่ไปแล้ว เปิดอีเมลแล้วกดลิงก์ภายใน 1 ชั่วโมง`;
       render(); return;
     }
-    const r = kind === 'signup' ? await S.api.signUp(L.email, pw) : await S.api.signInPassword(L.email, pw);
+    const remember = document.getElementById('login-remember')?.checked ?? true;
+    L.remember = remember;
+    const r = kind === 'signup' ? await S.api.signUp(L.email, pw, remember) : await S.api.signInPassword(L.email, pw, remember);
+    saveLastEmail(L.email, remember);
     L.busy = '';
     if (r && r.needsConfirm) { L.mode = 'signin'; L.info = 'สมัครแล้ว กรุณาเปิดอีเมลเพื่อยืนยันบัญชี แล้วกลับมาเข้าสู่ระบบ'; render(); return; }
     finishLogin(r);
@@ -560,7 +575,7 @@ async function submitOnboarding() {
 
 async function finishLogin(profile) {
   S.me = profile;
-  S.login = { mode: 'signin', email: '', busy: '', error: '', info: '' };
+  S.login = { mode: 'signin', email: lastEmail(), busy: '', error: '', info: '', remember: rememberPref() };
   resetCaches();
   S.form = newForm(S.me);
   S.onb = null;
@@ -1409,6 +1424,12 @@ $app.addEventListener('change', async (ev) => {
   const f = S.form;
   switch (field) {
     case 'received_date': f.received_date = el.value; render(); break;
+    case 'login-remember': {
+      S.login.remember = el.checked;
+      const h = document.querySelector('.remember-hint');
+      if (h) h.textContent = el.checked ? 'ครั้งต่อไปเปิดเว็บในเครื่องนี้ ใช้งานได้เลยไม่ต้องเข้าสู่ระบบใหม่ · ไม่ควรติ๊กถ้าเป็นเครื่องที่ใช้ร่วมกัน' : 'จะออกจากระบบอัตโนมัติเมื่อปิดเบราว์เซอร์';
+      break;
+    }
     case 'photos': {
       const room = 6 - f.photos.length;
       [...el.files].slice(0, room).forEach((file) => f.photos.push({ file, url: URL.createObjectURL(file) }));

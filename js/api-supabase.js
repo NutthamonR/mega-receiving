@@ -8,9 +8,22 @@ export async function createSupabaseApi(config) {
   // ลิงก์รีเซ็ตรหัสผ่านจากอีเมล (ต้องเช็กก่อนสร้าง client เพราะ client จะล้างค่าใน URL)
   const recoveryLink = /type=recovery/.test(location.hash + location.search);
   const { createClient } = await import(SUPABASE_JS);
+  // "จำการเข้าสู่ระบบ": เปิด = เก็บไว้ในเครื่อง (localStorage) / ปิด = ลืมเมื่อปิดเบราว์เซอร์ (sessionStorage)
+  const REMEMBER_KEY = 'mega-recv-remember';
+  const safe = (fn, fallback = null) => { try { return fn(); } catch { return fallback; } };
+  const remembered = () => safe(() => localStorage.getItem(REMEMBER_KEY), '1') !== '0';
+  const storage = {
+    getItem: (k) => safe(() => sessionStorage.getItem(k)) ?? safe(() => localStorage.getItem(k)),
+    setItem: (k, v) => {
+      if (remembered()) { safe(() => localStorage.setItem(k, v)); safe(() => sessionStorage.removeItem(k)); }
+      else { safe(() => sessionStorage.setItem(k, v)); safe(() => localStorage.removeItem(k)); }
+    },
+    removeItem: (k) => { safe(() => localStorage.removeItem(k)); safe(() => sessionStorage.removeItem(k)); },
+  };
   const sb = createClient(config.SUPABASE_URL, config.SUPABASE_ANON_KEY, {
-    auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true },
+    auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true, storage },
   });
+  const setRemember = (on) => safe(() => localStorage.setItem(REMEMBER_KEY, on ? '1' : '0'));
 
   let me = null;
 
@@ -82,13 +95,15 @@ export async function createSupabaseApi(config) {
     isRecoveryLink() { return recoveryLink; },
 
     // เข้าสู่ระบบด้วยอีเมล + รหัสผ่าน
-    async signInPassword(email, password) {
+    async signInPassword(email, password, remember = true) {
+      setRemember(remember);
       check(await sb.auth.signInWithPassword({ email, password }));
       return loadProfile();
     },
 
     // สมัครใช้งานครั้งแรก (ปิด Confirm email ใน Supabase แล้ว จะเข้าใช้งานได้ทันที)
-    async signUp(email, password) {
+    async signUp(email, password, remember = true) {
+      setRemember(remember);
       const data = check(await sb.auth.signUp({ email, password, options: { emailRedirectTo: location.origin + location.pathname } }));
       if (!data.session) return { needsConfirm: true };
       return loadProfile();

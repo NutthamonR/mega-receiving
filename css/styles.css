@@ -319,7 +319,11 @@ textarea.input { resize: vertical; }
 .pw-wrap { position: relative; }
 .pw-wrap .input { padding-right: 72px; }
 .pw-toggle { position: absolute; right: 4px; top: 50%; transform: translateY(-50%); min-height: 38px; padding: 0 12px; border: 0; background: transparent; color: var(--accent-ink); font-weight: 600; font-size: 13px; cursor: pointer; border-radius: 8px; }
-.forgot-link { align-self: flex-end; min-height: 32px; padding: 0; margin-top: -6px; }
+.remember-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin-top: -4px; }
+.remember { display: inline-flex; align-items: center; gap: 10px; min-height: 44px; font-size: 14px; font-weight: 500; cursor: pointer; }
+.remember input { width: 22px; height: 22px; accent-color: var(--accent); margin: 0; }
+.remember-row .linklike { min-height: 44px; padding: 0; }
+.remember-hint { margin-top: -10px; }
 
 .login { min-height: 100vh; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); background: var(--bg); }
 .login-brand { background: linear-gradient(160deg, var(--brand), var(--accent)); color: var(--accent-fg); display: flex; align-items: center; justify-content: center; padding-block: 48px; padding-left: max(32px, env(safe-area-inset-left, 0px)); padding-right: 32px; position: relative; overflow: hidden; }
