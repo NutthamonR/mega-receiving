@@ -44,7 +44,7 @@ function saveLastEmail(email, on) { try { on ? localStorage.setItem('mega-recv-e
 
 /* ---------- state ---------- */
 const $app = document.getElementById('app');
-const newForm = (me) => ({
+const blankForm = (me) => ({
   branch: me && BRANCHES.includes(me.home_branch) ? me.home_branch : '',
   received_date: localISO(),
   doc_type: 'tax_invoice',
@@ -54,6 +54,84 @@ const newForm = (me) => ({
   docs: [],
   errors: [],
 });
+
+/* ---------- ฉบับร่างฟอร์มรับของ: กรอกค้างไว้ไม่หาย แม้สลับแท็บ/แอป หรือรีเฟรชหน้า ----------
+   ข้อความเก็บใน localStorage, รูปและไฟล์เก็บใน IndexedDB (อยู่ในเครื่องนี้เท่านั้น) */
+const DRAFT = {
+  key: (me) => 'mega-recv-draft-' + (me ? me.id : ''),
+  db: null,
+  openDb() {
+    if (this.db) return this.db;
+    this.db = new Promise((res, rej) => {
+      try {
+        const r = indexedDB.open('mega-recv', 1);
+        r.onupgradeneeded = () => r.result.createObjectStore('drafts');
+        r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error);
+      } catch (e) { rej(e); }
+    });
+    return this.db;
+  },
+  async idb(mode, fn) {
+    const db = await this.openDb();
+    return new Promise((res, rej) => {
+      const tx = db.transaction('drafts', mode); const req = fn(tx.objectStore('drafts'));
+      tx.oncomplete = () => res(req && req.result); tx.onerror = () => rej(tx.error);
+    });
+  },
+  hasContent(f) {
+    return f.items.some((i) => i.name.trim()) || f.note.trim() || f.photos.length || f.docs.length;
+  },
+  saveText(me, f) {
+    if (!me) return;
+    try {
+      if (!this.hasContent(f)) { localStorage.removeItem(this.key(me)); return; }
+      localStorage.setItem(this.key(me), JSON.stringify({
+        branch: f.branch, received_date: f.received_date, doc_type: f.doc_type, note: f.note,
+        items: f.items.map((i) => ({ name: i.name, qty: i.qty, unit: i.unit })), savedAt: Date.now(),
+      }));
+    } catch {}
+  },
+  saveFiles(me, f) {
+    if (!me || !window.indexedDB) return;
+    const files = { photos: f.photos.map((p) => p.file), docs: f.docs.map((d) => d.file) };
+    this.idb('readwrite', (st) => (files.photos.length || files.docs.length ? st.put(files, this.key(me)) : st.delete(this.key(me)))).catch(() => {});
+  },
+  save(me, f) { this.saveText(me, f); this.saveFiles(me, f); },
+  loadText(me) { try { return JSON.parse(localStorage.getItem(this.key(me)) || 'null'); } catch { return null; } },
+  async loadFiles(me) { try { return window.indexedDB ? await this.idb('readonly', (st) => st.get(this.key(me))) : null; } catch { return null; } },
+  clear(me) {
+    if (!me) return;
+    try { localStorage.removeItem(this.key(me)); } catch {}
+    if (window.indexedDB) this.idb('readwrite', (st) => st.delete(this.key(me))).catch(() => {});
+  },
+};
+
+// ฟอร์มใหม่: ถ้ามีฉบับร่างที่กรอกค้างไว้ของผู้ใช้คนนี้ ดึงกลับมาให้
+function newForm(me) {
+  const f = blankForm(me);
+  const d = me && DRAFT.loadText(me);
+  if (d) {
+    Object.assign(f, {
+      branch: BRANCHES.includes(d.branch) ? d.branch : f.branch,
+      received_date: d.received_date || f.received_date,
+      doc_type: d.doc_type || f.doc_type,
+      note: d.note || '',
+      items: Array.isArray(d.items) && d.items.length ? d.items : f.items,
+      restored: true,
+    });
+  }
+  if (me) {
+    DRAFT.loadFiles(me).then((files) => {
+      if (!files || S.form !== f) return;
+      (files.photos || []).forEach((file) => f.photos.push({ file, url: URL.createObjectURL(file) }));
+      (files.docs || []).forEach((file) => f.docs.push({ file }));
+      if (f.photos.length || f.docs.length) { f.restored = true; if (route() === 'receive') render(); }
+    });
+  }
+  return f;
+}
+let draftTimer = null;
+function saveDraftSoon() { clearTimeout(draftTimer); draftTimer = setTimeout(() => S.form && DRAFT.saveText(S.me, S.form), 300); }
 const S = {
   api: null, me: null, booting: true, busy: false, toast: '',
   form: null, currentId: null, justSaved: false,
@@ -593,6 +671,7 @@ function receiveHtml() {
   return `
   <main class="wrap page page-narrow">
     <form class="stack-lg" data-form="receive" novalidate>
+      ${f.restored ? `<div class="notice notice-info notice-icon draft-note">${ICON.sync}<span>ดึงข้อมูลที่กรอกค้างไว้กลับมาให้แล้ว ยังไม่ได้บันทึก · <button type="button" class="linklike" data-action="draft-clear">ล้างฟอร์มเริ่มใหม่</button></span></div>` : ''}
       ${me.requested_role && me.requested_role !== me.role ? `<div class="notice notice-info notice-icon">${ICON.lock}<span>คำขอบทบาท <b>${esc(ROLES[me.requested_role]?.label)}</b> รอผู้ดูแลระบบอนุมัติ ระหว่างนี้ใช้งานในสิทธิ์${esc(ROLES[me.role].label)}</span></div>` : ''}
       <section class="card receiver">
         <span class="avatar avatar-lg">${esc(initials(me.full_name))}</span>
@@ -742,7 +821,8 @@ async function submitReceive() {
       items: f.items.filter((i) => i.name.trim()).map((i) => ({ name: i.name.trim(), qty: Number(i.qty), unit: i.unit.trim() })),
       photos, docs: f.doc_type === 'none' ? [] : docs,
     });
-    S.form = newForm(S.me);
+    DRAFT.clear(S.me);
+    S.form = blankForm(S.me);
     S.currentId = r.id; S.justSaved = true; S.cache.detail = r;
     S.busy = false;
     go('receipt');
@@ -1307,14 +1387,15 @@ $app.addEventListener('click', async (ev) => {
   const f = S.form;
   const d = S.admin.draft;
   switch (act) {
-    case 'pick-branch': f.branch = el.dataset.value; render(); break;
-    case 'pick-doc': f.doc_type = el.dataset.value; render(); break;
+    case 'pick-branch': f.branch = el.dataset.value; DRAFT.saveText(S.me, f); render(); break;
+    case 'pick-doc': f.doc_type = el.dataset.value; DRAFT.saveText(S.me, f); render(); break;
     case 'add-item': f.items.push({ name: '', qty: 1, unit: '' }); await render(); document.getElementById(`item-name-${f.items.length - 1}`)?.focus(); break;
-    case 'remove-item': f.items.splice(idx, 1); render(); break;
-    case 'inc': f.items[idx].qty = (Number(f.items[idx].qty) || 0) + 1; render(); break;
-    case 'dec': f.items[idx].qty = Math.max(0, (Number(f.items[idx].qty) || 0) - 1); render(); break;
-    case 'remove-photo': URL.revokeObjectURL(f.photos[idx].url); f.photos.splice(idx, 1); render(); break;
-    case 'remove-doc': f.docs.splice(idx, 1); render(); break;
+    case 'remove-item': f.items.splice(idx, 1); DRAFT.saveText(S.me, f); render(); break;
+    case 'inc': f.items[idx].qty = (Number(f.items[idx].qty) || 0) + 1; DRAFT.saveText(S.me, f); render(); break;
+    case 'dec': f.items[idx].qty = Math.max(0, (Number(f.items[idx].qty) || 0) - 1); DRAFT.saveText(S.me, f); render(); break;
+    case 'remove-photo': URL.revokeObjectURL(f.photos[idx].url); f.photos.splice(idx, 1); DRAFT.save(S.me, f); render(); break;
+    case 'remove-doc': f.docs.splice(idx, 1); DRAFT.save(S.me, f); render(); break;
+    case 'draft-clear': DRAFT.clear(S.me); S.form = blankForm(S.me); toast('ล้างฟอร์มแล้ว'); render(); break;
     case 'open-receipt': ev.preventDefault(); S.currentId = el.dataset.id; S.justSaved = false; go('receipt'); break;
     case 'all-branch': S.all.branch = el.dataset.value; render(); break;
     case 'select-receipt': S.all.selected = el.dataset.id; render(); break;
@@ -1372,7 +1453,7 @@ $app.addEventListener('click', async (ev) => {
       S.notif.list.forEach((n) => { n.read_at = n.read_at || new Date().toISOString(); });
       updateNotifDom(); S.api.markNotificationsRead(null).catch(() => {}); break;
     case 'notif-open': openNotification(el.dataset.id); break;
-    case 'signout': await S.api.signOut(); S.me = null; S.recovery = null; resetCaches(); clearInterval(pollTimer); toast('ออกจากระบบแล้ว'); render(); break;
+    case 'signout': DRAFT.clear(S.me); await S.api.signOut(); S.me = null; S.recovery = null; resetCaches(); clearInterval(pollTimer); toast('ออกจากระบบแล้ว'); render(); break;
     case 'login-ms':
       S.login.busy = 'ms'; S.login.error = ''; render();
       try {
@@ -1402,6 +1483,7 @@ $app.addEventListener('input', (ev) => {
   if (!field) return;
   const f = S.form;
   const i = Number(el.dataset.idx);
+  if (['item-name', 'item-unit', 'item-qty', 'note'].includes(field)) saveDraftSoon();
   if (field === 'item-name') f.items[i].name = el.value;
   else if (field === 'item-unit') f.items[i].unit = el.value;
   else if (field === 'item-qty') {
@@ -1426,7 +1508,7 @@ $app.addEventListener('change', async (ev) => {
   if (!field) return;
   const f = S.form;
   switch (field) {
-    case 'received_date': f.received_date = el.value; render(); break;
+    case 'received_date': f.received_date = el.value; DRAFT.saveText(S.me, f); render(); break;
     case 'login-remember': {
       S.login.remember = el.checked;
       const h = document.querySelector('.remember-hint');
@@ -1437,9 +1519,9 @@ $app.addEventListener('change', async (ev) => {
       const room = 6 - f.photos.length;
       [...el.files].slice(0, room).forEach((file) => f.photos.push({ file, url: URL.createObjectURL(file) }));
       if (el.files.length > room) toast('แนบรูปได้สูงสุด 6 รูป');
-      render(); break;
+      el.value = ''; DRAFT.save(S.me, f); render(); break;
     }
-    case 'docs': [...el.files].forEach((file) => f.docs.push({ file })); render(); break;
+    case 'docs': [...el.files].forEach((file) => f.docs.push({ file })); el.value = ''; DRAFT.save(S.me, f); render(); break;
     case 'mine-range': S.mine.range = el.value; render(); break;
     case 'all-from': S.all.from = el.value; S.cache.all = null; render(); break;
     case 'all-to': S.all.to = el.value; S.cache.all = null; render(); break;
@@ -1470,7 +1552,10 @@ window.addEventListener('auth-recovery', async () => {
 });
 window.addEventListener('auth-changed', async () => {
   if (S.recovery) return;
-  S.me = await S.api.currentProfile(); resetCaches(); S.form = newForm(S.me); render();
+  const p = await S.api.currentProfile();
+  // กลับมาที่แท็บนี้ ระบบเช็กการเข้าสู่ระบบซ้ำ: ถ้ายังเป็นคนเดิม ไม่ต้องล้างหน้าหรือฟอร์ม
+  if (p && S.me && p.id === S.me.id) { S.me = p; return; }
+  S.me = p; resetCaches(); S.form = newForm(S.me); render();
 });
 
 /* ---------- boot ---------- */
@@ -1502,4 +1587,7 @@ document.addEventListener('click', (ev) => {
 document.addEventListener('keydown', (ev) => {
   if (ev.key === 'Escape' && S.notif.open) { S.notif.open = false; updateNotifDom(); }
 });
-document.addEventListener('visibilitychange', () => { if (!document.hidden) refreshNotifs(); });
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) { if (S.form && S.me) DRAFT.saveText(S.me, S.form); } else refreshNotifs();
+});
+window.addEventListener('pagehide', () => { if (S.form && S.me) DRAFT.saveText(S.me, S.form); });

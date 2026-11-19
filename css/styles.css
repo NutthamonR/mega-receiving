@@ -285,6 +285,7 @@ textarea.input { resize: vertical; }
 .radio-card .chip { margin-left: auto; }
 
 /* admin */
+.draft-note .linklike { min-height: 0; padding: 0; display: inline; }
 .temp-pw { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .temp-pw code { font-family: var(--mono); font-size: 22px; font-weight: 700; letter-spacing: .04em; background: var(--surface); color: var(--fg); border: 1px dashed var(--line-strong); border-radius: 10px; padding: 6px 14px; user-select: all; }
 .roles { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
