@@ -32,6 +32,7 @@ const ICON = {
   sync: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12a9 9 0 1 1-3-6.7L21 8"/><path d="M21 3v5h-5"/></svg>',
   download: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12M7 10l5 5 5-5M4 19h16"/></svg>',
   x: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>',
+  image: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="2"/><path d="M21 16l-5-5-9 9"/></svg>',
   bell: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9a6 6 0 0 1 12 0c0 5 2 6.5 2 6.5H4S6 14 6 9z"/><path d="M10 19a2 2 0 0 0 4 0"/></svg>',
   user: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21c1.5-4 4.5-6 8-6s6.5 2 8 6"/></svg>',
 };
@@ -656,9 +657,11 @@ function receiveHtml() {
               <button type="button" class="thumb-x" aria-label="ลบรูป ${i + 1}" data-action="remove-photo" data-idx="${i}">${ICON.x}</button>
             </div>`).join('')}
           ${f.photos.length < 6 ? `
-            <label class="thumb thumb-add" for="photo-input">${ICON.camera}<span>ถ่าย / เลือกรูป</span></label>` : ''}
+            <label class="thumb thumb-add" for="photo-camera">${ICON.camera}<span>ถ่ายรูป</span></label>
+            <label class="thumb thumb-add" for="photo-input">${ICON.image}<span>เลือกจากคลังภาพ</span></label>` : ''}
         </div>
-        <input id="photo-input" type="file" accept="image/*" capture="environment" multiple hidden data-field="photos">
+        <input id="photo-camera" type="file" accept="image/*" capture="environment" hidden data-field="photos">
+        <input id="photo-input" type="file" accept="image/*" multiple hidden data-field="photos">
       </section>
 
       <section class="card stack">
